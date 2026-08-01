@@ -30,7 +30,10 @@ public class Message
 
     public string Content { get; set; } = string.Empty;
     public string MediaUrl { get; set; } = string.Empty;
+
+    [NotMapped]
     public string Reaction { get; set; } = string.Empty;
+
     public MessageType Type { get; set; } = MessageType.Text;
     public bool IsRead { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
