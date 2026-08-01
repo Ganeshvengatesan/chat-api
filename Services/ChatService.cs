@@ -109,10 +109,20 @@ public class ChatService : IChatService
             .Include(c => c.Participants).ThenInclude(p => p.User)
             .Include(c => c.Messages)
             .Where(c => c.Participants.Any(p => p.UserId == userId))
-            .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.CreatedAt) ?? c.CreatedAt)
             .ToListAsync();
 
-        return chats.Select(c => MapChatResponse(c, userId)).ToList();
+        chats = chats
+            .OrderByDescending(c => c.Messages.Select(m => (DateTime?)m.CreatedAt).Max() ?? c.CreatedAt)
+            .ToList();
+
+        var pendingUserIds = await _db.FriendRequests
+            .Where(fr => (fr.SenderId == userId || fr.ReceiverId == userId) && fr.Status == RequestStatus.Pending)
+            .Select(fr => fr.SenderId == userId ? fr.ReceiverId : fr.SenderId)
+            .ToListAsync();
+
+        var pendingSet = new HashSet<Guid>(pendingUserIds);
+
+        return chats.Select(c => MapChatResponse(c, userId, pendingSet)).ToList();
     }
 
     public async Task<MessageResponseDto> SendMessageAsync(Guid senderId, SendMessageDto request)
@@ -338,29 +348,36 @@ public class ChatService : IChatService
         return p?.Role;
     }
 
-    private ChatResponseDto MapChatResponse(Chat c, Guid currentUserId)
+    private ChatResponseDto MapChatResponse(Chat c, Guid currentUserId, HashSet<Guid>? pendingSet = null)
     {
         var userParticipant = c.Participants.FirstOrDefault(p => p.UserId == currentUserId);
         var otherParticipant = c.Participants.FirstOrDefault(p => p.UserId != currentUserId);
 
-        string chatName = c.Name;
-        string iconUrl = c.GroupIconUrl;
+        string chatName = c.Name ?? "Chat";
+        string iconUrl = c.GroupIconUrl ?? "";
 
         if (c.Type == ChatType.Direct && otherParticipant?.User != null)
         {
             chatName = string.IsNullOrEmpty(otherParticipant.User.FullName) 
-                ? otherParticipant.User.Username 
+                ? (otherParticipant.User.Username ?? "User") 
                 : otherParticipant.User.FullName;
-            iconUrl = otherParticipant.User.AvatarUrl;
+            iconUrl = otherParticipant.User.AvatarUrl ?? "";
         }
 
         bool isPending = false;
         if (c.Type == ChatType.Direct && otherParticipant != null)
         {
-            isPending = _db.FriendRequests.Any(fr =>
-                ((fr.SenderId == currentUserId && fr.ReceiverId == otherParticipant.UserId) ||
-                 (fr.SenderId == otherParticipant.UserId && fr.ReceiverId == currentUserId)) &&
-                fr.Status == RequestStatus.Pending);
+            if (pendingSet != null)
+            {
+                isPending = pendingSet.Contains(otherParticipant.UserId);
+            }
+            else
+            {
+                isPending = _db.FriendRequests.Any(fr =>
+                    ((fr.SenderId == currentUserId && fr.ReceiverId == otherParticipant.UserId) ||
+                     (fr.SenderId == otherParticipant.UserId && fr.ReceiverId == currentUserId)) &&
+                    fr.Status == RequestStatus.Pending);
+            }
         }
 
         var lastMessage = c.Messages.OrderByDescending(m => m.CreatedAt).FirstOrDefault();
