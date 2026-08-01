@@ -112,8 +112,19 @@ if (app.Environment.IsDevelopment() || true)
     });
 }
 
+var uploadsFolder = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
+if (!Directory.Exists(uploadsFolder))
+{
+    Directory.CreateDirectory(uploadsFolder);
+}
+
 app.UseCors("AllowAll");
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsFolder),
+    RequestPath = "/uploads"
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
