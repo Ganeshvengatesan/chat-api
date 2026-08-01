@@ -57,6 +57,40 @@ public class ChatsController : ControllerBase
         }
     }
 
+    [HttpPost("upload")]
+    public async Task<IActionResult> UploadMedia([FromForm] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "No file provided." });
+        }
+
+        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        if (!Directory.Exists(uploadsFolder))
+        {
+            Directory.CreateDirectory(uploadsFolder);
+        }
+
+        var fileExt = Path.GetExtension(file.FileName);
+        var fileName = $"{Guid.NewGuid()}{fileExt}";
+        var filePath = Path.Combine(uploadsFolder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var relativeUrl = $"/uploads/{fileName}";
+        var sizeInMb = (file.Length / (1024.0 * 1024.0)).ToString("0.0");
+
+        return Ok(new
+        {
+            url = relativeUrl,
+            fileName = file.FileName,
+            fileSize = $"{sizeInMb} MB"
+        });
+    }
+
     [HttpGet("{chatId:guid}/messages")]
     public async Task<IActionResult> GetMessages(Guid chatId, [FromQuery] int limit = 50)
     {
