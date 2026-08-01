@@ -57,6 +57,21 @@ public class ChatsController : ControllerBase
         }
     }
 
+    [HttpPost("messages/{messageId:guid}/react")]
+    public async Task<IActionResult> ReactToMessage(Guid messageId, [FromBody] ReactMessageDto request)
+    {
+        var userId = GetCurrentUserId();
+        try
+        {
+            var msg = await _chatService.ReactToMessageAsync(userId, messageId, request.Reaction);
+            return Ok(msg);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("upload")]
     public async Task<IActionResult> UploadMedia([FromForm] IFormFile file)
     {

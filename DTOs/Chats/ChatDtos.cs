@@ -44,6 +44,11 @@ public class ParticipantDto
     public bool IsOnline { get; set; }
 }
 
+public class ReactMessageDto
+{
+    public string Reaction { get; set; } = string.Empty;
+}
+
 public class MessageResponseDto
 {
     public Guid MessageId { get; set; }
@@ -52,6 +57,7 @@ public class MessageResponseDto
     public string SenderName { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public string MediaUrl { get; set; } = string.Empty;
+    public string Reaction { get; set; } = string.Empty;
     public int Type { get; set; }
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; }

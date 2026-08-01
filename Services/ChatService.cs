@@ -171,6 +171,44 @@ public class ChatService : IChatService
             SenderName = senderName,
             Content = request.Content, // Return original plain text to sender
             MediaUrl = message.MediaUrl,
+            Reaction = message.Reaction,
+            Type = (int)message.Type,
+            IsRead = message.IsRead,
+            CreatedAt = message.CreatedAt
+        };
+    }
+
+    public async Task<MessageResponseDto> ReactToMessageAsync(Guid userId, Guid messageId, string reaction)
+    {
+        var message = await _db.Messages
+            .Include(m => m.Sender)
+            .FirstOrDefaultAsync(m => m.Id == messageId);
+
+        if (message == null)
+        {
+            throw new ArgumentException("Message not found.");
+        }
+
+        var isParticipant = await _db.ChatParticipants
+            .AnyAsync(cp => cp.ChatId == message.ChatId && cp.UserId == userId);
+
+        if (!isParticipant)
+        {
+            throw new UnauthorizedAccessException("Access denied.");
+        }
+
+        message.Reaction = reaction;
+        await _db.SaveChangesAsync();
+
+        return new MessageResponseDto
+        {
+            MessageId = message.Id,
+            ChatId = message.ChatId,
+            SenderId = message.SenderId,
+            SenderName = message.Sender?.FullName ?? "",
+            Content = _encryptionService.Decrypt(message.Content),
+            MediaUrl = message.MediaUrl,
+            Reaction = message.Reaction,
             Type = (int)message.Type,
             IsRead = message.IsRead,
             CreatedAt = message.CreatedAt
@@ -217,6 +255,7 @@ public class ChatService : IChatService
             SenderName = m.Sender != null ? m.Sender.FullName : "",
             Content = _encryptionService.Decrypt(m.Content),
             MediaUrl = m.MediaUrl,
+            Reaction = m.Reaction,
             Type = (int)m.Type,
             IsRead = m.IsRead,
             CreatedAt = m.CreatedAt
