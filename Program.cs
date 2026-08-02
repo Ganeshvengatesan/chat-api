@@ -112,19 +112,63 @@ if (app.Environment.IsDevelopment() || true)
     });
 }
 
-var uploadsFolder = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
+var wwwrootFolder = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+var uploadsFolder = Path.Combine(wwwrootFolder, "uploads");
+if (!Directory.Exists(wwwrootFolder))
+{
+    Directory.CreateDirectory(wwwrootFolder);
+}
 if (!Directory.Exists(uploadsFolder))
 {
     Directory.CreateDirectory(uploadsFolder);
 }
+builder.Environment.WebRootPath = wwwrootFolder;
+
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".png"] = "image/png";
+contentTypeProvider.Mappings[".jpg"] = "image/jpeg";
+contentTypeProvider.Mappings[".jpeg"] = "image/jpeg";
+contentTypeProvider.Mappings[".gif"] = "image/gif";
+contentTypeProvider.Mappings[".webp"] = "image/webp";
+contentTypeProvider.Mappings[".svg"] = "image/svg+xml";
+contentTypeProvider.Mappings[".mp4"] = "video/mp4";
+contentTypeProvider.Mappings[".mov"] = "video/quicktime";
+contentTypeProvider.Mappings[".pdf"] = "application/pdf";
+contentTypeProvider.Mappings[".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+contentTypeProvider.Mappings[".doc"] = "application/msword";
+contentTypeProvider.Mappings[".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+contentTypeProvider.Mappings[".zip"] = "application/zip";
+contentTypeProvider.Mappings[".mp3"] = "audio/mpeg";
+contentTypeProvider.Mappings[".wav"] = "audio/wav";
+contentTypeProvider.Mappings[".m4a"] = "audio/m4a";
+contentTypeProvider.Mappings[".ogg"] = "audio/ogg";
 
 app.UseCors("AllowAll");
-app.UseStaticFiles();
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsFolder),
-    RequestPath = "/uploads"
+    RequestPath = "/uploads",
+    ContentTypeProvider = contentTypeProvider,
+    ServeUnknownFileTypes = true,
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=31536000");
+    }
 });
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootFolder),
+    ContentTypeProvider = contentTypeProvider,
+    ServeUnknownFileTypes = true,
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -12,10 +12,12 @@ namespace ChatApplicationAPI.Controllers;
 public class ChatsController : ControllerBase
 {
     private readonly IChatService _chatService;
+    private readonly IWebHostEnvironment _environment;
 
-    public ChatsController(IChatService chatService)
+    public ChatsController(IChatService chatService, IWebHostEnvironment environment)
     {
         _chatService = chatService;
+        _environment = environment;
     }
 
     [HttpGet]
@@ -80,13 +82,14 @@ public class ChatsController : ControllerBase
             return BadRequest(new { message = "No file provided." });
         }
 
-        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        var contentRoot = _environment.ContentRootPath;
+        var uploadsFolder = Path.Combine(contentRoot, "wwwroot", "uploads");
         if (!Directory.Exists(uploadsFolder))
         {
             Directory.CreateDirectory(uploadsFolder);
         }
 
-        var fileExt = Path.GetExtension(file.FileName);
+        var fileExt = Path.GetExtension(file.FileName).ToLowerInvariant();
         var fileName = $"{Guid.NewGuid()}{fileExt}";
         var filePath = Path.Combine(uploadsFolder, fileName);
 
@@ -96,13 +99,37 @@ public class ChatsController : ControllerBase
         }
 
         var relativeUrl = $"/uploads/{fileName}";
-        var sizeInMb = (file.Length / (1024.0 * 1024.0)).ToString("0.0");
+        var sizeInMb = (file.Length / (1024.0 * 1024.0)).ToString("0.1");
+
+        string mediaType = "file";
+        var imageExts = new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
+        var videoExts = new[] { ".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp" };
+        var audioExts = new[] { ".mp3", ".wav", ".m4a", ".aac", ".ogg" };
+        var docExts = new[] { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".zip", ".rar" };
+
+        if (imageExts.Contains(fileExt))
+        {
+            mediaType = "image";
+        }
+        else if (videoExts.Contains(fileExt))
+        {
+            mediaType = "video";
+        }
+        else if (audioExts.Contains(fileExt))
+        {
+            mediaType = "audio";
+        }
+        else if (docExts.Contains(fileExt))
+        {
+            mediaType = "document";
+        }
 
         return Ok(new
         {
             url = relativeUrl,
             fileName = file.FileName,
-            fileSize = $"{sizeInMb} MB"
+            fileSize = $"{sizeInMb} MB",
+            mediaType = mediaType
         });
     }
 
