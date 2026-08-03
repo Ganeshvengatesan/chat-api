@@ -13,11 +13,13 @@ public class ChatsController : ControllerBase
 {
     private readonly IChatService _chatService;
     private readonly IWebHostEnvironment _environment;
+    private readonly IS3StorageService _s3StorageService;
 
-    public ChatsController(IChatService chatService, IWebHostEnvironment environment)
+    public ChatsController(IChatService chatService, IWebHostEnvironment environment, IS3StorageService s3StorageService)
     {
         _chatService = chatService;
         _environment = environment;
+        _s3StorageService = s3StorageService;
     }
 
     [HttpGet]
@@ -74,6 +76,21 @@ public class ChatsController : ControllerBase
         }
     }
 
+    [HttpDelete("messages/{messageId:guid}")]
+    public async Task<IActionResult> DeleteMessage(Guid messageId)
+    {
+        var userId = GetCurrentUserId();
+        try
+        {
+            var success = await _chatService.DeleteMessageAsync(userId, messageId);
+            return Ok(new { success });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("upload")]
     public async Task<IActionResult> UploadMedia([FromForm] IFormFile file)
     {
@@ -82,26 +99,12 @@ public class ChatsController : ControllerBase
             return BadRequest(new { message = "No file provided." });
         }
 
-        var contentRoot = _environment.ContentRootPath;
-        var uploadsFolder = Path.Combine(contentRoot, "wwwroot", "uploads");
-        if (!Directory.Exists(uploadsFolder))
-        {
-            Directory.CreateDirectory(uploadsFolder);
-        }
-
         var fileExt = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var fileName = $"{Guid.NewGuid()}{fileExt}";
-        var filePath = Path.Combine(uploadsFolder, fileName);
-
-        using (var stream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
-
-        var relativeUrl = $"/uploads/{fileName}";
         var sizeInMb = (file.Length / (1024.0 * 1024.0)).ToString("0.1");
 
         string mediaType = "file";
+        string s3Folder = "documents";
+
         var imageExts = new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
         var videoExts = new[] { ".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp" };
         var audioExts = new[] { ".mp3", ".wav", ".m4a", ".aac", ".ogg" };
@@ -110,23 +113,51 @@ public class ChatsController : ControllerBase
         if (imageExts.Contains(fileExt))
         {
             mediaType = "image";
+            s3Folder = "images";
         }
         else if (videoExts.Contains(fileExt))
         {
             mediaType = "video";
+            s3Folder = "videos";
         }
         else if (audioExts.Contains(fileExt))
         {
             mediaType = "audio";
+            s3Folder = "voice";
         }
         else if (docExts.Contains(fileExt))
         {
             mediaType = "document";
+            s3Folder = "documents";
+        }
+
+        // 1. Try uploading to AWS S3
+        string? fileUrl = await _s3StorageService.UploadFileAsync(file, s3Folder);
+
+        // 2. Fallback to local server disk storage if S3 is unconfigured or offline
+        if (string.IsNullOrEmpty(fileUrl))
+        {
+            var contentRoot = _environment.ContentRootPath;
+            var uploadsFolder = Path.Combine(contentRoot, "wwwroot", "uploads");
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            var fileName = $"{Guid.NewGuid()}{fileExt}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            fileUrl = $"/uploads/{fileName}";
         }
 
         return Ok(new
         {
-            url = relativeUrl,
+            url = fileUrl,
             fileName = file.FileName,
             fileSize = $"{sizeInMb} MB",
             mediaType = mediaType

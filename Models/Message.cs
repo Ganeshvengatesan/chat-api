@@ -31,7 +31,6 @@ public class Message
     public string Content { get; set; } = string.Empty;
     public string MediaUrl { get; set; } = string.Empty;
 
-    [NotMapped]
     public string Reaction { get; set; } = string.Empty;
 
     public MessageType Type { get; set; } = MessageType.Text;

@@ -13,4 +13,5 @@ public interface IChatService
     Task<bool> AddMemberToGroupAsync(Guid currentUserId, Guid chatId, Guid newUserId, bool makeAdmin = false);
     Task<bool> RemoveMemberFromGroupAsync(Guid currentUserId, Guid chatId, Guid targetUserId);
     Task<bool> DeleteGroupAsync(Guid currentUserId, Guid chatId);
+    Task<bool> DeleteMessageAsync(Guid userId, Guid messageId);
 }

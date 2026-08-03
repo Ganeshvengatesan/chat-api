@@ -442,4 +442,20 @@ public class ChatService : IChatService
             }).ToList()
         };
     }
+
+    public async Task<bool> DeleteMessageAsync(Guid userId, Guid messageId)
+    {
+        var message = await _db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (message == null) return false;
+
+        var isParticipant = await _db.ChatParticipants.AnyAsync(cp => cp.ChatId == message.ChatId && cp.UserId == userId);
+        if (!isParticipant)
+        {
+            throw new UnauthorizedAccessException("You are not a participant in this chat.");
+        }
+
+        _db.Messages.Remove(message);
+        await _db.SaveChangesAsync();
+        return true;
+    }
 }
