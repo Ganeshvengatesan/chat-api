@@ -113,6 +113,49 @@ public class ChatService : IChatService
                 .Where(c => c.Participants.Any(p => p.UserId == userId))
                 .ToListAsync();
 
+            // Ensure Direct Chats exist for all accepted friends
+            var acceptedFriendUserIds = await _db.FriendRequests
+                .Where(fr => (fr.SenderId == userId || fr.ReceiverId == userId) && fr.Status == RequestStatus.Accepted)
+                .Select(fr => fr.SenderId == userId ? fr.ReceiverId : fr.SenderId)
+                .ToListAsync();
+
+            if (acceptedFriendUserIds.Any())
+            {
+                bool chatCreated = false;
+                foreach (var friendId in acceptedFriendUserIds)
+                {
+                    bool chatExists = chats.Any(c => c.Type == ChatType.Direct && c.Participants.Any(p => p.UserId == friendId));
+                    if (!chatExists)
+                    {
+                        var newChat = new Chat
+                        {
+                            Type = ChatType.Direct,
+                            CreatedBy = userId,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _db.Chats.AddAsync(newChat);
+                        await _db.SaveChangesAsync();
+
+                        await _db.ChatParticipants.AddRangeAsync(new List<ChatParticipant>
+                        {
+                            new ChatParticipant { ChatId = newChat.Id, UserId = userId, Role = ParticipantRole.Member },
+                            new ChatParticipant { ChatId = newChat.Id, UserId = friendId, Role = ParticipantRole.Member }
+                        });
+                        await _db.SaveChangesAsync();
+                        chatCreated = true;
+                    }
+                }
+
+                if (chatCreated)
+                {
+                    chats = await _db.Chats
+                        .Include(c => c.Participants).ThenInclude(p => p.User)
+                        .Include(c => c.Messages)
+                        .Where(c => c.Participants.Any(p => p.UserId == userId))
+                        .ToListAsync();
+                }
+            }
+
             var pendingSet = new HashSet<Guid>();
             try
             {

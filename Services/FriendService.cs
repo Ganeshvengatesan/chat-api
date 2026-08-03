@@ -148,10 +148,36 @@ public class FriendService : IFriendService
 
         if (newStatus == RequestStatus.Accepted)
         {
+            var targetUserId = friendRequest.SenderId == currentUserId ? friendRequest.ReceiverId : friendRequest.SenderId;
+
+            // Ensure Direct Chat exists
+            var existingChat = await _db.Chats
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Type == ChatType.Direct &&
+                    c.Participants.Any(p => p.UserId == currentUserId) &&
+                    c.Participants.Any(p => p.UserId == targetUserId));
+
+            if (existingChat == null)
+            {
+                var newChat = new Chat
+                {
+                    Type = ChatType.Direct,
+                    CreatedBy = currentUserId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _db.Chats.AddAsync(newChat);
+                await _db.SaveChangesAsync();
+
+                await _db.ChatParticipants.AddRangeAsync(new List<ChatParticipant>
+                {
+                    new ChatParticipant { ChatId = newChat.Id, UserId = currentUserId, Role = ParticipantRole.Member },
+                    new ChatParticipant { ChatId = newChat.Id, UserId = targetUserId, Role = ParticipantRole.Member }
+                });
+                await _db.SaveChangesAsync();
+            }
+
             var user = await _db.Users.FindAsync(currentUserId);
             string name = user?.FullName ?? user?.Username ?? "Someone";
-
-            var targetUserId = friendRequest.SenderId == currentUserId ? friendRequest.ReceiverId : friendRequest.SenderId;
 
             await _notificationService.CreateAndSendNotificationAsync(new NotificationRequest
             {
