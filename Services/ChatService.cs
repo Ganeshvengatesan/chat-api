@@ -273,9 +273,9 @@ public class ChatService : IChatService
             ChatId = message.ChatId,
             SenderId = message.SenderId,
             SenderName = message.Sender?.FullName ?? "",
-            Content = _encryptionService.Decrypt(message.Content),
-            MediaUrl = message.MediaUrl,
-            Reaction = message.Reaction,
+            Content = SafeDecrypt(message.Content),
+            MediaUrl = message.MediaUrl ?? "",
+            Reaction = message.Reaction ?? "",
             Type = (int)message.Type,
             IsRead = message.IsRead,
             CreatedAt = message.CreatedAt
