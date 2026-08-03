@@ -326,7 +326,7 @@ public class ChatService : IChatService
                 ChatId = m.ChatId,
                 SenderId = m.SenderId,
                 SenderName = m.Sender != null ? (m.Sender.FullName ?? m.Sender.Username) : "",
-                Content = _encryptionService.Decrypt(m.Content),
+                Content = SafeDecrypt(m.Content),
                 MediaUrl = m.MediaUrl ?? "",
                 Reaction = m.Reaction ?? "",
                 Type = (int)m.Type,
@@ -337,6 +337,19 @@ public class ChatService : IChatService
         catch
         {
             return new List<MessageResponseDto>();
+        }
+    }
+
+    private string SafeDecrypt(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        try
+        {
+            return _encryptionService.Decrypt(content);
+        }
+        catch
+        {
+            return content;
         }
     }
 

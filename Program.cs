@@ -96,11 +96,22 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.Database.EnsureCreated();
+
+        // Automatically patch any missing columns on Neon PostgreSQL
+        db.Database.ExecuteSqlRaw(@"
+            ALTER TABLE ""Messages"" ADD COLUMN IF NOT EXISTS ""Reaction"" text NOT NULL DEFAULT '';
+            ALTER TABLE ""Messages"" ADD COLUMN IF NOT EXISTS ""MediaUrl"" text NOT NULL DEFAULT '';
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""StatusBio"" text NOT NULL DEFAULT 'Live, Love, Link';
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""IsOnline"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""LastSeen"" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE ""Chats"" ADD COLUMN IF NOT EXISTS ""Description"" text NOT NULL DEFAULT '';
+            ALTER TABLE ""Chats"" ADD COLUMN IF NOT EXISTS ""GroupIconUrl"" text NOT NULL DEFAULT '';
+        ");
     }
     catch (Exception ex)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Failed to initialize Neon PostgreSQL database tables.");
+        logger.LogError(ex, "Failed to initialize Neon PostgreSQL database tables or schema columns.");
     }
 }
 
