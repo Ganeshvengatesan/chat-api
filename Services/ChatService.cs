@@ -113,10 +113,6 @@ public class ChatService : IChatService
                 .Where(c => c.Participants.Any(p => p.UserId == userId))
                 .ToListAsync();
 
-            chats = chats
-                .OrderByDescending(c => c.Messages.Select(m => (DateTime?)m.CreatedAt).Max() ?? c.CreatedAt)
-                .ToList();
-
             var pendingSet = new HashSet<Guid>();
             try
             {
@@ -131,7 +127,11 @@ public class ChatService : IChatService
                 // Fallback gracefully
             }
 
-            return chats.Select(c => MapChatResponse(c, userId, pendingSet)).ToList();
+            var mappedChats = chats.Select(c => MapChatResponse(c, userId, pendingSet)).ToList();
+
+            return mappedChats
+                .OrderByDescending(c => c.LastMessageTime ?? DateTime.MinValue)
+                .ToList();
         }
         catch
         {
@@ -375,8 +375,11 @@ public class ChatService : IChatService
 
     private ChatResponseDto MapChatResponse(Chat c, Guid currentUserId, HashSet<Guid>? pendingSet = null)
     {
-        var userParticipant = c.Participants.FirstOrDefault(p => p.UserId == currentUserId);
-        var otherParticipant = c.Participants.FirstOrDefault(p => p.UserId != currentUserId);
+        var participants = c.Participants ?? new List<ChatParticipant>();
+        var messages = c.Messages ?? new List<Message>();
+
+        var userParticipant = participants.FirstOrDefault(p => p.UserId == currentUserId);
+        var otherParticipant = participants.FirstOrDefault(p => p.UserId != currentUserId);
 
         string chatName = c.Name ?? "Chat";
         string iconUrl = c.GroupIconUrl ?? "";
@@ -390,22 +393,12 @@ public class ChatService : IChatService
         }
 
         bool isPending = false;
-        if (c.Type == ChatType.Direct && otherParticipant != null)
+        if (c.Type == ChatType.Direct && otherParticipant != null && pendingSet != null)
         {
-            if (pendingSet != null)
-            {
-                isPending = pendingSet.Contains(otherParticipant.UserId);
-            }
-            else
-            {
-                isPending = _db.FriendRequests.Any(fr =>
-                    ((fr.SenderId == currentUserId && fr.ReceiverId == otherParticipant.UserId) ||
-                     (fr.SenderId == otherParticipant.UserId && fr.ReceiverId == currentUserId)) &&
-                    fr.Status == RequestStatus.Pending);
-            }
+            isPending = pendingSet.Contains(otherParticipant.UserId);
         }
 
-        var lastMessage = c.Messages.OrderByDescending(m => m.CreatedAt).FirstOrDefault();
+        var lastMessage = messages.OrderByDescending(m => m.CreatedAt).FirstOrDefault();
 
         string decryptedLastMsg = "";
         if (lastMessage != null && !string.IsNullOrEmpty(lastMessage.Content))
@@ -427,11 +420,11 @@ public class ChatService : IChatService
             Type = c.Type.ToString(),
             IconUrl = iconUrl,
             LastMessage = decryptedLastMsg,
-            LastMessageTime = lastMessage?.CreatedAt,
-            UnreadCount = c.Messages.Count(m => !m.IsRead && m.SenderId != currentUserId),
+            LastMessageTime = lastMessage?.CreatedAt ?? c.CreatedAt,
+            UnreadCount = messages.Count(m => !m.IsRead && m.SenderId != currentUserId),
             UserRole = userParticipant?.Role.ToString() ?? "Member",
             IsPendingRequest = isPending,
-            Participants = c.Participants.Select(p => new ParticipantDto
+            Participants = participants.Select(p => new ParticipantDto
             {
                 UserId = p.UserId,
                 Username = p.User?.Username ?? "",

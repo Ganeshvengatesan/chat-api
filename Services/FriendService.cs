@@ -187,6 +187,45 @@ public class FriendService : IFriendService
             .ToListAsync();
     }
 
+    public async Task<List<UserSearchResultDto>> GetFriendsAsync(Guid userId)
+    {
+        // 1. Get user IDs of accepted friend requests
+        var friendUserIds = await _db.FriendRequests
+            .Where(fr => (fr.SenderId == userId || fr.ReceiverId == userId) && fr.Status == RequestStatus.Accepted)
+            .Select(fr => fr.SenderId == userId ? fr.ReceiverId : fr.SenderId)
+            .ToListAsync();
+
+        // 2. Get user IDs from direct chats
+        var directChatUserIds = await _db.Chats
+            .Include(c => c.Participants)
+            .Where(c => c.Type == ChatType.Direct && c.Participants.Any(p => p.UserId == userId))
+            .SelectMany(c => c.Participants)
+            .Where(p => p.UserId != userId)
+            .Select(p => p.UserId)
+            .ToListAsync();
+
+        var allFriendIds = friendUserIds.Concat(directChatUserIds).Distinct().ToList();
+
+        if (!allFriendIds.Any())
+        {
+            return new List<UserSearchResultDto>();
+        }
+
+        var friends = await _db.Users
+            .Where(u => allFriendIds.Contains(u.Id))
+            .Select(u => new UserSearchResultDto
+            {
+                UserId = u.Id,
+                Username = u.Username,
+                FullName = u.FullName,
+                AvatarUrl = u.AvatarUrl ?? "",
+                FriendshipStatus = "Accepted"
+            })
+            .ToListAsync();
+
+        return friends;
+    }
+
     public async Task<List<UserSearchResultDto>> SearchUsersAsync(Guid currentUserId, string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return new List<UserSearchResultDto>();

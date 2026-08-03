@@ -7,6 +7,7 @@ public interface IFriendService
     Task<FriendRequestResponseDto> SendFriendOrMessageRequestAsync(Guid senderId, SendFriendRequestDto request);
     Task<bool> RespondToRequestAsync(Guid receiverId, RespondFriendRequestDto request);
     Task<List<FriendRequestResponseDto>> GetPendingRequestsAsync(Guid userId);
+    Task<List<UserSearchResultDto>> GetFriendsAsync(Guid userId);
     Task<List<UserSearchResultDto>> SearchUsersAsync(Guid currentUserId, string query);
 }
 

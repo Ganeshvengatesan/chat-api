@@ -41,6 +41,14 @@ public class FriendsController : ControllerBase
         return Ok(new { success });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetFriends()
+    {
+        var userId = GetUserId();
+        var friends = await _friendService.GetFriendsAsync(userId);
+        return Ok(friends);
+    }
+
     [HttpGet("requests")]
     public async Task<IActionResult> GetPendingRequests()
     {
